@@ -1,0 +1,29 @@
+[
+  {
+    "id": "1773442350075",
+    "name": "Terra AI – AI-Powered One-Click Cloud Infrastructure Builder",
+    "tag": "Infrastructure as Code (IaC) Automation",
+    "desc": "Terra AI is a one-click cloud infrastructure builder that automatically creates, configures, and deploys your complete cloud environment in seconds. No complex setup, no manual configuration — just launch and scale your infrastructure instantly with AI.",
+    "url": "https://terraa.online/",
+    "coverImage": "/uploads/1773442349956-634298000.png",
+    "priority": 1
+  },
+  {
+    "id": "1773443406375",
+    "name": "FCT Interview Master",
+    "tag": "SaaS Productivity Tool , Admin Management System",
+    "desc": "FCT Interview Manager is an automated interview management platform where admins create interviewers, students book slots, and the system handles attendance marking, remarks, certificate generation, and email notifications — making the entire interview process smooth and efficient.",
+    "url": "http://fctinterview.online/",
+    "coverImage": "/uploads/1773443406315-704366195.png",
+    "priority": 2
+  },
+  {
+    "id": "1773445286812",
+    "name": "Jay Jijau Collections (On Going)",
+    "tag": "E-Commers, SaaS, Admin Panel",
+    "desc": "Developed a complete digital saree store solution including a mobile app, web application, and powerful admin panel. Customers can explore saree collections, view product details, and place orders easily, while the admin dashboard allows the shop owner to manage products, inventory, and orders from a single platform. The system helps traditional saree businesses run and manage their online store efficiently.",
+    "url": "https://terraa.online/",
+    "coverImage": "/uploads/1773445286809-615818388.jpg",
+    "priority": 3
+  }
+]

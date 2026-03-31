@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard - Cloud Build Admin</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script src="/sortable.min.js"></script>
+</head>
+<body>
+  <!-- Top Bar -->
+  <div class="topbar">
+    <div class="topbar-left">
+      <h1 class="logo">Cloud<span>Build</span></h1>
+      <span class="admin-label">Admin Panel</span>
+    </div>
+    <div class="topbar-right">
+      <span class="user-email" id="userEmail"></span>
+    </div>
+  </div>
+
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <nav>
+      <a href="#" class="nav-link active" data-section="works">
+        <span class="icon">📁</span>
+        Our Work
+      </a>
+      <a href="#" class="nav-link" data-section="clients">
+        <span class="icon">💬</span>
+        Client Love
+      </a>
+      <a href="#" class="nav-link" data-section="videos">
+        <span class="icon">🎬</span>
+        Video Reviews
+      </a>
+      <a href="#" class="nav-link logout" id="logoutBtn">
+        <span class="icon">🚪</span>
+        Logout
+      </a>
+    </nav>
+  </div>
+
+  <!-- Main Content -->
+  <div class="main-content">
+    <!-- Our Work Section -->
+    <div class="section active" id="works-section">
+      <div class="section-header">
+        <h2>Our Work Manager</h2>
+        <button class="btn btn-primary" id="addWorkBtn">+ Add New Project</button>
+      </div>
+      <div class="cards-grid" id="worksGrid"></div>
+    </div>
+
+    <!-- Client Love Section -->
+    <div class="section" id="clients-section">
+      <div class="section-header">
+        <h2>Client Love Manager</h2>
+        <button class="btn btn-primary" id="addClientBtn">+ Add New Testimonial</button>
+      </div>
+      <div class="cards-grid" id="clientsGrid"></div>
+    </div>
+
+    <!-- Video Reviews Section -->
+    <div class="section" id="videos-section">
+      <div class="section-header">
+        <h2>Video Reviews Manager</h2>
+        <button class="btn btn-primary" id="addVideoBtn">+ Add New Video</button>
+      </div>
+      <div class="cards-grid" id="videosGrid"></div>
+    </div>
+  </div>
+
+  <!-- Modal -->
+  <div class="modal" id="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="modalTitle">Add New</h3>
+        <button class="close-btn" id="closeModal">&times;</button>
+      </div>
+      <div class="modal-body" id="modalBody"></div>
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div class="toast" id="toast"></div>
+
+  <script src="/script.js"></script>
+</body>
+</html>

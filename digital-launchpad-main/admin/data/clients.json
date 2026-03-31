@@ -1,0 +1,26 @@
+[
+  {
+    "id": "1773446363959",
+    "name": "Ganesh Mali",
+    "role": "Director Of  Fortune Cloud",
+    "text": "FCT Interview Master is platform the entire interview management process. From interviewer creation and student slot booking to automatic attendance marking, remarks, certificate generation, and email notifications — everything is handled seamlessly. It significantly reduces manual workload for mentors and HR teams.",
+    "rating": 5,
+    "photo": "/uploads/1773446363946-869203073.webp"
+  },
+  {
+    "id": "1773447362973",
+    "name": "Swati Zampal",
+    "role": "Cravita Technologies ",
+    "text": "Terra AI is a powerful one-click cloud infrastructure builder. With a single click it automatically creates and deploys cloud environments, pushes configurations to GitHub, and provisions AWS resources. It reduces up to 95% of manual DevOps workload and eliminates complex coding, making infrastructure deployment faster and smarter.",
+    "rating": 5,
+    "photo": "/uploads/1773447362968-677194579.webp"
+  },
+  {
+    "id": "1773448042567",
+    "name": "Asha Kadam",
+    "role": "Shop Owner ",
+    "text": "Working with this team was a great experience. They built a complete website and admin panel for my saree shop, making it very easy for me to manage products and my online store. Whenever I requested changes, they quickly updated everything as per my needs. I’m very happy with the service and highly recommend them.",
+    "rating": 5,
+    "photo": "/uploads/1773448042562-728812151.webp"
+  }
+]
