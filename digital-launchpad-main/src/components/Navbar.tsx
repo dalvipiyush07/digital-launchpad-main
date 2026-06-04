@@ -1,13 +1,13 @@
 import { useState, useEffect } from "react";
-import logoImg from "@/assets/logo.jpg";
+import logoImg from "@/assets/logo.png";
 
 const navLinks = [
-  { label: "Services", href: "#services" },
-  { label: "Work", href: "#work" },
-  { label: "Clients", href: "#testimonials" },
-  { label: "Blog", href: "#blog" },
-  { label: "FAQ", href: "#faq" },
-  { label: "Contact", href: "#contact" },
+  { label: "Services", href: "/#services" },
+  { label: "Industries", href: "/#industries" },
+  { label: "Case Studies", href: "/#case-studies" },
+  { label: "Insights", href: "/insights" },
+  { label: "About", href: "/#about" },
+  { label: "Contact", href: "/#contact" },
 ];
 
 export default function Navbar() {
@@ -27,27 +27,31 @@ export default function Navbar() {
 
   return (
     <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
-      scrolled ? "bg-background/95 backdrop-blur shadow-md" : "bg-transparent"
+      scrolled ? "bg-background/95 backdrop-blur border-b border-border shadow-sm" : "bg-transparent"
     }`}>
-      <div className="container mx-auto flex items-center justify-between h-16 px-4 lg:px-8">
-        <a href="#" className="flex items-center gap-2">
-          <img src={logoImg} alt="Cloud Build" className="h-12 w-auto rounded" />
+      <div className={`container mx-auto flex items-center justify-between transition-all duration-300 ${scrolled ? "h-20" : "h-28"} px-6 lg:px-8`}>
+        <a href="/" className="flex items-center">
+          <img 
+            src={logoImg} 
+            alt="CloudBuild" 
+            className={`transition-all duration-300 ${scrolled ? "h-12 md:h-18" : "h-16 md:h-24"} w-auto object-contain`} 
+          />
         </a>
 
         {/* Desktop Nav */}
         <div className="hidden md:flex items-center gap-8">
           {navLinks.map((l) => (
             <a key={l.href} href={l.href}
-              className="text-sm font-medium text-foreground/70 hover:text-foreground transition-colors">
+              className="text-xs font-semibold uppercase tracking-wider text-foreground/75 hover:text-[#7B2CF5] transition-colors">
               {l.label}
             </a>
           ))}
         </div>
 
         <div className="hidden md:flex items-center gap-3">
-          <a href="#contact"
-            className="px-5 py-2 rounded-full bg-foreground text-background text-sm font-semibold hover:bg-primary hover:text-primary-foreground transition-colors">
-            Get Started
+          <a href="/#contact"
+            className="px-6 py-2.5 rounded-full bg-foreground text-background text-xs font-bold hover:bg-primary hover:text-primary-foreground transition-all duration-300">
+            Talk to an Expert
           </a>
         </div>
 
@@ -74,8 +78,8 @@ export default function Navbar() {
         >
           {/* Header */}
           <div className="flex items-center justify-between px-6 h-16 border-b border-gray-100 flex-shrink-0">
-            <a href="#" onClick={() => setMenuOpen(false)}>
-              <img src={logoImg} alt="Cloud Build" className="h-10 w-auto rounded" />
+            <a href="#" onClick={() => setMenuOpen(false)} className="flex items-center">
+              <img src={logoImg} alt="CloudBuild" className="h-10 w-auto object-contain" />
             </a>
             <button
               onClick={() => setMenuOpen(false)}
@@ -118,19 +122,19 @@ export default function Navbar() {
             ))}
           </div>
 
-          {/* Get Started */}
+          {/* Talk to an Expert */}
           <div
             className="px-5 pb-8 flex-shrink-0"
             style={{ animation: `cardSlideIn 0.4s cubic-bezier(0.34,1.56,0.64,1) ${60 + navLinks.length * 60}ms both` }}
           >
             <a
-              href="#contact"
+              href="/#contact"
               onClick={() => setMenuOpen(false)}
               className="relative flex items-center justify-center gap-2 w-full py-4 rounded-2xl text-sm font-bold text-white overflow-hidden active:scale-95 transition-transform duration-150"
               style={{ background: "#0f172a", boxShadow: "0 4px 20px rgba(0,0,0,0.25)" }}
             >
               <span className="nav-ribbon-dark" />
-              <span className="relative z-10">Get Started →</span>
+              <span className="relative z-10">Talk to an Expert →</span>
             </a>
           </div>
         </div>

@@ -34,6 +34,18 @@
         <span class="icon">🎬</span>
         Video Reviews
       </a>
+      <a href="#" class="nav-link" data-section="blogs">
+        <span class="icon">📰</span>
+        Blogs / Insights
+      </a>
+      <a href="#" class="nav-link" data-section="faqs">
+        <span class="icon">❓</span>
+        FAQs
+      </a>
+      <a href="#" class="nav-link" data-section="settings">
+        <span class="icon">⚙️</span>
+        Site Settings
+      </a>
       <a href="#" class="nav-link logout" id="logoutBtn">
         <span class="icon">🚪</span>
         Logout
@@ -68,6 +80,60 @@
         <button class="btn btn-primary" id="addVideoBtn">+ Add New Video</button>
       </div>
       <div class="cards-grid" id="videosGrid"></div>
+    </div>
+
+    <!-- Blogs Section -->
+    <div class="section" id="blogs-section">
+      <div class="section-header">
+        <h2>Blogs / Insights Manager</h2>
+        <button class="btn btn-primary" id="addBlogBtn">+ Add New Post</button>
+      </div>
+      <div class="cards-grid" id="blogsGrid"></div>
+    </div>
+
+    <!-- FAQs Section -->
+    <div class="section" id="faqs-section">
+      <div class="section-header">
+        <h2>FAQs Manager</h2>
+        <button class="btn btn-primary" id="addFaqBtn">+ Add New FAQ</button>
+      </div>
+      <div class="cards-grid" id="faqsGrid"></div>
+    </div>
+
+    <!-- Settings Section -->
+    <div class="section" id="settings-section">
+      <div class="section-header">
+        <h2>Site Settings Manager</h2>
+      </div>
+      <div style="max-width: 600px; background: white; padding: 24px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+        <form id="settingsForm">
+          <div class="form-group" style="margin-bottom: 16px;">
+            <label style="display: block; font-weight: bold; margin-bottom: 8px; color: #1e293b;">Contact Email</label>
+            <input type="email" name="email" id="settingEmail" style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box;" required>
+          </div>
+          <div class="form-group" style="margin-bottom: 16px;">
+            <label style="display: block; font-weight: bold; margin-bottom: 8px; color: #1e293b;">Contact Phone</label>
+            <input type="text" name="phone" id="settingPhone" style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box;" required>
+          </div>
+          <div class="form-group" style="margin-bottom: 16px;">
+            <label style="display: block; font-weight: bold; margin-bottom: 8px; color: #1e293b;">WhatsApp Link</label>
+            <input type="url" name="whatsapp" id="settingWhatsapp" style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box;" required>
+          </div>
+          <div class="form-group" style="margin-bottom: 16px;">
+            <label style="display: block; font-weight: bold; margin-bottom: 8px; color: #1e293b;">Instagram URL</label>
+            <input type="url" name="instagram" id="settingInstagram" style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box;" required>
+          </div>
+          <div class="form-group" style="margin-bottom: 16px;">
+            <label style="display: block; font-weight: bold; margin-bottom: 8px; color: #1e293b;">LinkedIn URL</label>
+            <input type="url" name="linkedin" id="settingLinkedin" style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box;" required>
+          </div>
+          <div class="form-group" style="margin-bottom: 24px;">
+            <label style="display: block; font-weight: bold; margin-bottom: 8px; color: #1e293b;">Medium URL</label>
+            <input type="url" name="medium" id="settingMedium" style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box;" required>
+          </div>
+          <button type="submit" class="btn btn-primary" style="width: 100%; padding: 12px; font-weight: bold;">Save Settings</button>
+        </form>
+      </div>
     </div>
   </div>
 

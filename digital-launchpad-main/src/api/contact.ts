@@ -112,7 +112,7 @@ Let's grow your business together 🚀
 
 Best regards,
 Team Cloud Build
-shivam.garud2011@gmail.com`,
+cloudbuild07@gmail.com`,
   };
 
   try {

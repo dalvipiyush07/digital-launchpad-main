@@ -1,0 +1,12 @@
+[
+  { "id": "1", "q": "What cloud platforms do you support?", "a": "We primarily support Amazon Web Services (AWS), along with Google Cloud Platform (GCP) and Microsoft Azure for specific multi-cloud workloads." },
+  { "id": "2", "q": "Do you provide AWS consulting?", "a": "Yes, we provide full AWS consulting services including architecture design, serverless setups, cost audits, and performance tuning." },
+  { "id": "3", "q": "Can you build custom AI applications?", "a": "Absolutely. We build custom generative AI tools, speech/voice intelligence services, and machine learning pipelines integrated into your existing workflows." },
+  { "id": "4", "q": "Do you offer DevOps services?", "a": "Yes, we design robust CI/CD pipelines, containerized environments using Docker and Kubernetes, and automated infrastructure as code using Terraform." },
+  { "id": "5", "q": "Do you provide managed cloud support?", "a": "Yes, we offer 24/7 proactive monitoring, security patch management, backup strategies, and incident response agreements." },
+  { "id": "6", "q": "Can you migrate existing applications to AWS?", "a": "Yes, we conduct full workload discovery and migrate legacy servers, applications, and databases securely to AWS with minimal downtime." },
+  { "id": "7", "q": "How does the engagement process work?", "a": "We start with a technical discovery call, draft an architecture or implementation roadmap, execute in milestones, and deliver with hands-on handover support." },
+  { "id": "8", "q": "Do you work with startups and enterprises?", "a": "Yes, we scale our designs to support both early-stage startups seeking rapid MVPs and established enterprises demanding high security and compliance." },
+  { "id": "9", "q": "How long does a typical project take?", "a": "Cloud infrastructure and migrations take 2–4 weeks; complex AI integration and custom SaaS platforms take 6–12 weeks." },
+  { "id": "10", "q": "How can we contact CloudBuild?", "a": "You can email our consulting desk at cloudbuild07@gmail.com or schedule a consultation via WhatsApp." }
+]

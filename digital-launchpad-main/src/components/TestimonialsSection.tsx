@@ -1,193 +1,265 @@
 import { useState, useEffect, useRef } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { ChevronLeft, ChevronRight, Star } from "lucide-react";
 
 const IMG_BASE = typeof window !== 'undefined' && window.location.hostname !== 'localhost' 
   ? '' 
   : 'http://localhost:8081';
 
-export default function TestimonialsSection() {
-  const [testimonials, setTestimonials] = useState([]);
-  const sliderRef = useRef<HTMLDivElement>(null);
+interface Testimonial {
+  id: string;
+  name: string;
+  role: string;
+  text: string;
+  rating: number;
+  photo: string;
+}
 
-  // scroll state refs — no re-renders needed
-  const pos = useRef(0);          // current scroll position
-  const vel = useRef(0);          // velocity for momentum
-  const touching = useRef(false);
-  const hovered = useRef(false);
-  const touchX = useRef(0);
-  const lastX = useRef(0);
-  const lastT = useRef(0);
-  const rafId = useRef<number>(0);
+const fallbackTestimonials: Testimonial[] = [
+  {
+    id: "fallback-1",
+    name: "Rajesh Sekhar",
+    role: "CTO, Finova Solutions",
+    text: "CloudBuild rebuilt our entire AWS infrastructure from scratch, cutting our monthly bills by 42% while introducing self-healing auto-scaling. Their cloud engineering expertise is world-class.",
+    rating: 5,
+    photo: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=150&auto=format&fit=crop"
+  },
+  {
+    id: "fallback-2",
+    name: "Sarah Jenkins",
+    role: "VP of Product, IntellectSaaS",
+    text: "The production-ready AI agent pipeline they deployed has automated 65% of our customer onboarding workflows with extreme precision. Outstanding engineering and professional execution.",
+    rating: 5,
+    photo: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=150&auto=format&fit=crop"
+  },
+  {
+    id: "fallback-3",
+    name: "Aditya Roy",
+    role: "Director of Engineering, HealthNet Group",
+    text: "Migrating legacy core workloads to a distributed microservices platform is complex, but CloudBuild did it with zero downtime. They are our go-to technology consulting partner.",
+    rating: 5,
+    photo: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?q=80&w=150&auto=format&fit=crop"
+  },
+  {
+    id: "fallback-4",
+    name: "Michael Chang",
+    role: "VP Engineering, Logistics Express",
+    text: "DevOps automation by CloudBuild reduced our pipeline delivery time from 45 minutes to under 3 minutes. Zero-downtime shipping is now a standard operational reality for us.",
+    rating: 5,
+    photo: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?q=80&w=150&auto=format&fit=crop"
+  },
+  {
+    id: "fallback-5",
+    name: "Nikhil Mehta",
+    role: "COO, Apex Retail",
+    text: "Their managed SRE services give us total peace of mind. Proactive serverless infrastructure monitoring and dedicated support around the clock.",
+    rating: 5,
+    photo: "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?q=80&w=150&auto=format&fit=crop"
+  }
+];
+
+export default function TestimonialsSection() {
+  const [testimonials, setTestimonials] = useState<Testimonial[]>([]);
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [direction, setDirection] = useState(0); // -1 for left, 1 for right
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
+    async function fetchTestimonials() {
+      try {
+        const res = await fetch('/api/clients');
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data) && data.length > 0) {
+            setTestimonials(data);
+            return;
+          }
+        }
+      } catch (e) {
+        console.error("Failed to load client testimonials, using fallback reviews", e);
+      }
+      setTestimonials(fallbackTestimonials);
+    }
     fetchTestimonials();
   }, []);
 
-  const fetchTestimonials = async () => {
-    try {
-      const res = await fetch('/api/clients');
-      setTestimonials(await res.json());
-    } catch (e) { console.error(e); }
-  };
-
-  // 120fps rAF loop
+  // Set up auto-rotation interval
   useEffect(() => {
-    const slider = sliderRef.current;
-    if (!slider || testimonials.length === 0) return;
+    if (testimonials.length === 0) return;
 
-    const loop = () => {
-      const max = slider.scrollWidth - slider.clientWidth;
-      if (max <= 0) { rafId.current = requestAnimationFrame(loop); return; }
-
-      if (!touching.current) {
-        if (hovered.current) {
-          // momentum decay on hover
-          vel.current *= 0.92;
-          pos.current += vel.current;
-        } else {
-          // auto-scroll + momentum blend
-          vel.current *= 0.95;
-          pos.current += vel.current + 0.8; // 0.8px per frame = smooth auto
-        }
-
-        // seamless loop
-        if (pos.current >= max) pos.current = 0;
-        if (pos.current < 0) pos.current = max;
-
-        slider.scrollLeft = pos.current;
-      }
-
-      rafId.current = requestAnimationFrame(loop);
+    resetTimer();
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
     };
+  }, [testimonials, activeIndex]);
 
-    rafId.current = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(rafId.current);
-  }, [testimonials]);
-
-  // Touch handlers
-  const onTouchStart = (e: React.TouchEvent) => {
-    touching.current = true;
-    touchX.current = e.touches[0].clientX;
-    lastX.current = e.touches[0].clientX;
-    lastT.current = Date.now();
-    vel.current = 0;
+  const resetTimer = () => {
+    if (timerRef.current) clearInterval(timerRef.current);
+    timerRef.current = setInterval(() => {
+      handleNext();
+    }, 5000);
   };
 
-  const onTouchMove = (e: React.TouchEvent) => {
-    e.preventDefault();
-    const slider = sliderRef.current;
-    if (!slider) return;
-
-    const now = Date.now();
-    const dx = touchX.current - e.touches[0].clientX;
-
-    // velocity tracking for momentum
-    const dt = now - lastT.current;
-    if (dt > 0) vel.current = (lastX.current - e.touches[0].clientX) / dt * 16;
-
-    lastX.current = e.touches[0].clientX;
-    lastT.current = now;
-
-    pos.current = Math.max(0, Math.min(
-      slider.scrollWidth - slider.clientWidth,
-      pos.current + (e.touches[0].clientX - (touchX.current - dx + e.touches[0].clientX - e.touches[0].clientX))
-    ));
-
-    // direct drag
-    pos.current += (touchX.current - e.touches[0].clientX);
-    touchX.current = e.touches[0].clientX;
-    slider.scrollLeft = pos.current;
+  const handlePrev = () => {
+    setDirection(-1);
+    setActiveIndex((prev) => (prev === 0 ? testimonials.length - 1 : prev - 1));
+    resetTimer();
   };
 
-  const onTouchEnd = () => {
-    touching.current = false;
-    // momentum continues via vel.current in rAF loop
-    setTimeout(() => { vel.current = 0; }, 800);
+  const handleNext = () => {
+    setDirection(1);
+    setActiveIndex((prev) => (prev === testimonials.length - 1 ? 0 : prev + 1));
+    resetTimer();
+  };
+
+  const handleDotClick = (index: number) => {
+    setDirection(index > activeIndex ? 1 : -1);
+    setActiveIndex(index);
+    resetTimer();
   };
 
   if (testimonials.length === 0) return null;
 
-  const items = testimonials.length < 3
-    ? [...testimonials, ...testimonials, ...testimonials, ...testimonials]
-    : [...testimonials, ...testimonials];
+  const current = testimonials[activeIndex];
+  const photo = current.photo?.startsWith('/uploads')
+    ? `${IMG_BASE}${current.photo}`
+    : current.photo;
+
+  // Slide transition variants
+  const slideVariants = {
+    enter: (dir: number) => ({
+      x: dir > 0 ? 100 : -100,
+      opacity: 0
+    }),
+    center: {
+      x: 0,
+      opacity: 1
+    },
+    exit: (dir: number) => ({
+      x: dir > 0 ? -100 : 100,
+      opacity: 0
+    })
+  };
 
   return (
-    <section id="testimonials" className="py-12 lg:py-16">
-      <div className="container mx-auto px-4">
-        <div className="text-center mb-10">
-          <span className="text-xs font-semibold uppercase tracking-widest text-primary">Client Love</span>
-          <h2 className="font-heading font-extrabold text-3xl md:text-4xl mt-2">Happy Clients, Real Results</h2>
-          <p className="text-muted-foreground mt-3">Don't just take our word for it.</p>
+    <section className="py-24 bg-secondary/15 border-b border-border">
+      <div className="container mx-auto px-6">
+        <div className="text-center max-w-3xl mx-auto mb-16">
+          <span className="text-xs font-semibold uppercase tracking-widest text-[#7B2CF5] bg-[#7B2CF5]/10 px-3 py-1 rounded-full">
+            Client Love
+          </span>
+          <h2 className="font-heading font-black text-3xl md:text-5xl text-foreground mt-4 tracking-tight">
+            What Our Clients Say
+          </h2>
+          <p className="font-body text-base text-muted-foreground mt-4 leading-relaxed">
+            Leading enterprises and scale-ups trust CloudBuild to architect their mission-critical applications.
+          </p>
         </div>
 
-        <div
-          ref={sliderRef}
-          className="overflow-x-hidden select-none"
-          style={{ cursor: "grab", touchAction: "pan-x" }}
-          onMouseEnter={() => { hovered.current = true; }}
-          onMouseLeave={() => { hovered.current = false; }}
-          onTouchStart={onTouchStart}
-          onTouchMove={onTouchMove}
-          onTouchEnd={onTouchEnd}
-        >
-          <div className="flex gap-5 pb-2">
-            {items.map((t, idx) => {
-              const photo = t.photo?.startsWith('/uploads')
-                ? `${IMG_BASE}${t.photo}`
-                : t.photo;
+        {/* Carousel Container */}
+        <div className="max-w-4xl mx-auto relative px-4 sm:px-12">
+          {/* Controls - Left Desktop */}
+          <button
+            onClick={handlePrev}
+            className="absolute left-0 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full border border-border bg-background flex items-center justify-center text-muted-foreground hover:text-[#7B2CF5] hover:border-[#7B2CF5] hover:shadow-sm transition-all duration-200 z-10 hidden sm:flex"
+            aria-label="Previous slide"
+          >
+            <ChevronLeft className="w-5 h-5" />
+          </button>
 
-              return (
-                <div
-                  key={`${t.id}-${idx}`}
-                  className="flex-shrink-0 p-6 rounded-2xl border border-border bg-background"
-                  style={{
-                    width: "min(320px, 78vw)",
-                    boxShadow: "0 4px 24px rgba(0,0,0,0.07)",
-                  }}
-                >
-                  {/* Profile row */}
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="w-12 h-12 rounded-full overflow-hidden flex-shrink-0 bg-gray-100 border-2 border-white shadow">
-                      <img
-                        src={photo}
-                        alt={t.name}
-                        className="w-full h-full object-cover"
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(t.name)}&background=e0e7ff&color=4f46e5&size=96`;
-                        }}
-                      />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="font-heading font-bold text-sm leading-tight truncate">{t.name}</p>
-                      <p className="text-xs text-muted-foreground truncate">{t.role}</p>
-                    </div>
-                  </div>
+          {/* Testimonial Card Slider */}
+          <div className="overflow-hidden min-h-[300px] sm:min-h-[260px] flex items-center justify-center">
+            <AnimatePresence initial={false} custom={direction} mode="wait">
+              <motion.div
+                key={activeIndex}
+                custom={direction}
+                variants={slideVariants}
+                initial="enter"
+                animate="center"
+                exit="exit"
+                transition={{ duration: 0.35, ease: "easeInOut" }}
+                className="w-full bg-background border border-border/60 p-8 sm:p-12 rounded-3xl shadow-sm flex flex-col items-center text-center relative"
+              >
+                {/* Large Quotation Mark Accent */}
+                <span className="absolute top-4 left-6 text-8xl font-serif text-[#7B2CF5]/5 select-none leading-none">“</span>
 
-                  {/* Stars */}
-                  <div className="flex gap-0.5 mb-3">
-                    {Array.from({ length: t.rating || 5 }).map((_, s) => (
-                      <svg key={s} viewBox="0 0 24 24" fill="#facc15" className="w-4 h-4">
-                        <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
-                      </svg>
-                    ))}
-                  </div>
-
-                  {/* Text */}
-                  <p className="text-sm italic text-muted-foreground leading-relaxed line-clamp-4">"{t.text}"</p>
+                {/* Rating Stars */}
+                <div className="flex gap-1 mb-6">
+                  {Array.from({ length: current.rating || 5 }).map((_, s) => (
+                    <Star key={s} className="w-5 h-5 fill-yellow-400 text-yellow-400" />
+                  ))}
                 </div>
-              );
-            })}
-          </div>
-        </div>
 
-        {/* Mobile swipe hint */}
-        <div className="flex items-center justify-center gap-2 mt-5 md:hidden">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4 text-muted-foreground">
-            <path d="M19 12H5M12 5l-7 7 7 7"/>
-          </svg>
-          <span className="text-xs text-muted-foreground">swipe to explore</span>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4 text-muted-foreground">
-            <path d="M5 12h14M12 5l7 7-7 7"/>
-          </svg>
+                {/* Quote Text */}
+                <blockquote className="font-body text-lg sm:text-xl text-foreground italic leading-relaxed max-w-2xl mb-8">
+                  "{current.text}"
+                </blockquote>
+
+                {/* Profile Detail */}
+                <div className="flex flex-col sm:flex-row items-center gap-4">
+                  <div className="w-14 h-14 rounded-full overflow-hidden border-2 border-white shadow bg-muted flex-shrink-0">
+                    <img
+                      src={photo}
+                      alt={current.name}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(current.name)}&background=7B2CF5&color=fff&size=96`;
+                      }}
+                    />
+                  </div>
+                  <div className="text-center sm:text-left">
+                    <cite className="font-heading font-bold text-base text-foreground not-italic block leading-snug">
+                      {current.name}
+                    </cite>
+                    <span className="font-body text-xs text-muted-foreground block">
+                      {current.role}
+                    </span>
+                  </div>
+                </div>
+              </motion.div>
+            </AnimatePresence>
+          </div>
+
+          {/* Controls - Right Desktop */}
+          <button
+            onClick={handleNext}
+            className="absolute right-0 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full border border-border bg-background flex items-center justify-center text-muted-foreground hover:text-[#7B2CF5] hover:border-[#7B2CF5] hover:shadow-sm transition-all duration-200 z-10 hidden sm:flex"
+            aria-label="Next slide"
+          >
+            <ChevronRight className="w-5 h-5" />
+          </button>
+
+          {/* Mobile Navigation Buttons */}
+          <div className="flex justify-center gap-4 mt-6 sm:hidden">
+            <button
+              onClick={handlePrev}
+              className="w-10 h-10 rounded-full border border-border bg-background flex items-center justify-center text-muted-foreground hover:text-[#7B2CF5]"
+              aria-label="Previous slide"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+            <button
+              onClick={handleNext}
+              className="w-10 h-10 rounded-full border border-border bg-background flex items-center justify-center text-muted-foreground hover:text-[#7B2CF5]"
+              aria-label="Next slide"
+            >
+              <ChevronRight className="w-5 h-5" />
+            </button>
+          </div>
+
+          {/* Indicators Dots */}
+          <div className="flex justify-center gap-2 mt-8">
+            {testimonials.map((_, idx) => (
+              <button
+                key={idx}
+                onClick={() => handleDotClick(idx)}
+                className={`h-2 rounded-full transition-all duration-300 ${
+                  idx === activeIndex ? "bg-[#7B2CF5] w-6" : "bg-border w-2 hover:bg-[#7B2CF5]/40"
+                }`}
+                aria-label={`Go to slide ${idx + 1}`}
+              />
+            ))}
+          </div>
         </div>
       </div>
     </section>

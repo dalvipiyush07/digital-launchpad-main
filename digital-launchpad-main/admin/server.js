@@ -7,7 +7,7 @@ const nodemailer = require('nodemailer');
 require('dotenv').config({ path: path.join(__dirname, '../.env') });
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 8081;
 
 // Email transporter configuration
 const transporter = nodemailer.createTransport({
@@ -312,7 +312,7 @@ app.post('/api/contact', async (req, res) => {
 
           <div style="color: #64748b; font-size: 14px;">
             <p style="margin: 5px 0;"><strong>Best regards,</strong></p>
-            <p style="margin: 5px 0;">Shivam & Team</p>
+            <p style="margin: 5px 0;">CloudBuild Team</p>
             <p style="margin: 5px 0;"><strong>CloudBuild</strong></p>
             <p style="margin: 5px 0;">📞 +91 7709646107</p>
             <p style="margin: 5px 0;">📍 Pune, Maharashtra, India</p>
@@ -331,6 +331,200 @@ app.post('/api/contact', async (req, res) => {
     console.error('Email error:', error);
     res.status(500).json({ success: false, message: 'Failed to send emails' });
   }
+});
+
+// ===== SETTINGS API =====
+app.get('/api/settings', (req, res) => {
+  const settings = readJSON('settings.json');
+  res.json(settings);
+});
+
+app.put('/api/settings', (req, res) => {
+  const settings = readJSON('settings.json');
+  const updatedSettings = {
+    ...settings,
+    ...req.body
+  };
+  writeJSON('settings.json', updatedSettings);
+  res.json({ success: true, settings: updatedSettings });
+});
+
+// ===== FAQS API =====
+app.get('/api/faqs', (req, res) => {
+  const faqs = readJSON('faqs.json');
+  res.json(faqs);
+});
+
+app.post('/api/faqs', (req, res) => {
+  const faqs = readJSON('faqs.json');
+  const newFaq = {
+    id: Date.now().toString(),
+    q: req.body.q,
+    a: req.body.a
+  };
+  faqs.push(newFaq);
+  writeJSON('faqs.json', faqs);
+  res.json({ success: true, faq: newFaq });
+});
+
+app.put('/api/faqs/:id', (req, res) => {
+  const faqs = readJSON('faqs.json');
+  const index = faqs.findIndex(f => f.id === req.params.id);
+  if (index !== -1) {
+    faqs[index] = {
+      ...faqs[index],
+      q: req.body.q,
+      a: req.body.a
+    };
+    writeJSON('faqs.json', faqs);
+    res.json({ success: true, faq: faqs[index] });
+  } else {
+    res.status(404).json({ success: false, message: 'FAQ not found' });
+  }
+});
+
+app.delete('/api/faqs/:id', (req, res) => {
+  let faqs = readJSON('faqs.json');
+  faqs = faqs.filter(f => f.id !== req.params.id);
+  writeJSON('faqs.json', faqs);
+  res.json({ success: true });
+});
+
+// ===== BLOGS API =====
+const https = require('https');
+
+const parseMediumRSS = (xmlText) => {
+  const items = [];
+  const itemReg = /<item>([\s\S]*?)<\/item>/g;
+  let match;
+  while ((match = itemReg.exec(xmlText)) !== null) {
+    const content = match[1];
+    const titleMatch = content.match(/<title>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/title>/);
+    const linkMatch = content.match(/<link>([\s\S]*?)<\/link>/);
+    const dateMatch = content.match(/<pubDate>([\s\S]*?)<\/pubDate>/);
+    const descMatch = content.match(/<description>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/description>/);
+    
+    let summary = "";
+    if (descMatch) {
+      summary = descMatch[1].replace(/<[^>]*>/g, '').replace(/[\r\n\t]+/g, ' ').trim().substring(0, 180) + '...';
+    }
+    
+    const imgReg = /<img[^>]+src=["'](https:\/\/cdn-images-\d+\.medium\.com\/[\s\S]*?)["']/;
+    const imgMatch = content.match(imgReg);
+    const coverImage = imgMatch ? imgMatch[1] : '/placeholder.svg';
+    
+    const title = titleMatch ? titleMatch[1].trim() : 'Medium Article';
+    const url = linkMatch ? linkMatch[1].trim() : 'https://medium.com/@cloudbuildtechnologies';
+    const dateStr = dateMatch ? new Date(dateMatch[1].trim()).toLocaleDateString('en-US', {
+      month: 'short', day: '2-digit', year: 'numeric'
+    }) : '';
+    
+    const id = 'medium-' + Math.random().toString(36).substring(2, 9);
+    const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    
+    items.push({
+      id,
+      slug,
+      title,
+      summary,
+      url,
+      coverImage,
+      publishedDate: dateStr,
+      category: "Insights",
+      published: true,
+      isMedium: true
+    });
+  }
+  return items;
+};
+
+const fetchMediumBlogs = () => {
+  return new Promise((resolve) => {
+    https.get('https://medium.com/feed/@cloudbuildtechnologies', (res) => {
+      let data = '';
+      res.on('data', (chunk) => { data += chunk; });
+      res.on('end', () => {
+        try {
+          const items = parseMediumRSS(data);
+          resolve(items);
+        } catch (e) {
+          console.error('Error parsing Medium RSS:', e);
+          resolve([]);
+        }
+      });
+    }).on('error', (e) => {
+      console.error('Error fetching Medium RSS:', e);
+      resolve([]);
+    });
+  });
+};
+
+app.get('/api/blogs', async (req, res) => {
+  const localBlogs = readJSON('blogs.json');
+  try {
+    const mediumBlogs = await fetchMediumBlogs();
+    const merged = [...localBlogs, ...mediumBlogs];
+    res.json(merged);
+  } catch (err) {
+    res.json(localBlogs);
+  }
+});
+
+app.post('/api/blogs', upload.single('coverImage'), (req, res) => {
+  const blogs = readJSON('blogs.json');
+  const title = req.body.title;
+  const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+  
+  const newBlog = {
+    id: Date.now().toString(),
+    slug,
+    title,
+    summary: req.body.summary,
+    content: req.body.content,
+    category: req.body.category || 'Insights',
+    coverImage: req.file ? `/uploads/${req.file.filename}` : '/placeholder.svg',
+    publishedDate: new Date().toLocaleDateString('en-US', {
+      month: 'short', day: '2-digit', year: 'numeric'
+    }),
+    published: req.body.published === 'true' || req.body.published === true
+  };
+  
+  blogs.push(newBlog);
+  writeJSON('blogs.json', blogs);
+  res.json({ success: true, blog: newBlog });
+});
+
+app.put('/api/blogs/:id', upload.single('coverImage'), (req, res) => {
+  const blogs = readJSON('blogs.json');
+  const index = blogs.findIndex(b => b.id === req.params.id);
+  
+  if (index !== -1) {
+    const title = req.body.title || blogs[index].title;
+    const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    
+    blogs[index] = {
+      ...blogs[index],
+      title,
+      slug,
+      summary: req.body.summary || blogs[index].summary,
+      content: req.body.content || blogs[index].content,
+      category: req.body.category || blogs[index].category,
+      coverImage: req.file ? `/uploads/${req.file.filename}` : blogs[index].coverImage,
+      published: req.body.published === 'true' || req.body.published === true
+    };
+    
+    writeJSON('blogs.json', blogs);
+    res.json({ success: true, blog: blogs[index] });
+  } else {
+    res.status(404).json({ success: false, message: 'Blog not found' });
+  }
+});
+
+app.delete('/api/blogs/:id', (req, res) => {
+  let blogs = readJSON('blogs.json');
+  blogs = blogs.filter(b => b.id !== req.params.id);
+  writeJSON('blogs.json', blogs);
+  res.json({ success: true });
 });
 
 // Start server

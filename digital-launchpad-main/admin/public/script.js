@@ -537,11 +537,292 @@ function previewImage(input) {
   }
 }
 
+// ===== BLOGS / INSIGHTS =====
+let currentEditBlog = null;
+
+async function loadBlogs() {
+  const response = await fetch(`${API_URL}/blogs`);
+  const blogs = await response.json();
+  const grid = document.getElementById('blogsGrid');
+  grid.innerHTML = blogs.map(blog => `
+    <div class="card">
+      <img src="${blog.coverImage.startsWith('/uploads') ? API_URL.replace('/api', '') + blog.coverImage : blog.coverImage}" class="card-image" alt="${blog.title}">
+      <div class="card-title">${blog.title}</div>
+      <div class="card-meta">
+        <span>Category: ${blog.category || 'Insights'}</span>
+        ${blog.isMedium ? '<span style="background:#000; color:#fff; padding:2px 6px; border-radius:4px; font-size:10px; margin-left:8px; font-weight:bold;">Medium</span>' : ''}
+      </div>
+      <div class="card-text">${blog.summary || ''}</div>
+      <div class="card-meta">Published: ${blog.publishedDate || ''}</div>
+      <div class="card-actions">
+        ${blog.isMedium 
+          ? `<a href="${blog.url}" target="_blank" class="btn btn-secondary btn-small" style="text-decoration:none; text-align:center; display:inline-block; line-height:24px;">Read Article</a>`
+          : `<button class="btn btn-secondary btn-small" onclick="editBlog('${blog.id}')">Edit</button>
+             <button class="btn btn-danger btn-small" onclick="deleteBlog('${blog.id}')">Delete</button>`
+        }
+      </div>
+    </div>
+  `).join('');
+}
+
+document.getElementById('addBlogBtn').addEventListener('click', () => {
+  currentEditBlog = null;
+  document.getElementById('modalTitle').textContent = 'Add New Blog Post';
+  document.getElementById('modalBody').innerHTML = `
+    <form id="blogForm" enctype="multipart/form-data">
+      <div class="form-group">
+        <label>Cover Image</label>
+        <input type="file" name="coverImage" accept="image/*" onchange="previewImage(this)">
+        <img id="imagePreview" class="image-preview" style="display:none">
+      </div>
+      <div class="form-group">
+        <label>Blog Title</label>
+        <input type="text" name="title" required>
+      </div>
+      <div class="form-group">
+        <label>Category</label>
+        <input type="text" name="category" placeholder="e.g. Cloud, AI, Enterprise" value="Insights" required>
+      </div>
+      <div class="form-group">
+        <label>Summary / Excerpt</label>
+        <textarea name="summary" placeholder="A short description of the post..." required></textarea>
+      </div>
+      <div class="form-group">
+        <label>Content (Markdown / HTML supported)</label>
+        <textarea name="content" rows="10" placeholder="Write your blog post content here..." required></textarea>
+      </div>
+      <div class="form-group" style="display: flex; align-items: center; gap: 8px;">
+        <input type="checkbox" name="published" value="true" id="blogPublished" checked>
+        <label for="blogPublished">Publish immediately</label>
+      </div>
+      <button type="submit" class="btn btn-primary">Add Blog Post</button>
+    </form>
+  `;
+  document.getElementById('blogForm').addEventListener('submit', saveBlog);
+  modal.classList.add('show');
+});
+
+async function editBlog(id) {
+  const response = await fetch(`${API_URL}/blogs`);
+  const blogs = await response.json();
+  const blog = blogs.find(b => b.id === id);
+  if (!blog) return;
+  if (blog.isMedium) {
+    showToast('Medium articles cannot be edited locally.', 'error');
+    return;
+  }
+  
+  currentEditBlog = id;
+  document.getElementById('modalTitle').textContent = 'Edit Blog Post';
+  document.getElementById('modalBody').innerHTML = `
+    <form id="blogForm" enctype="multipart/form-data">
+      <div class="form-group">
+        <label>Cover Image</label>
+        <input type="file" name="coverImage" accept="image/*" onchange="previewImage(this)">
+        <img id="imagePreview" class="image-preview" src="${blog.coverImage.startsWith('/uploads') ? API_URL.replace('/api', '') + blog.coverImage : blog.coverImage}">
+      </div>
+      <div class="form-group">
+        <label>Blog Title</label>
+        <input type="text" name="title" value="${blog.title}" required>
+      </div>
+      <div class="form-group">
+        <label>Category</label>
+        <input type="text" name="category" value="${blog.category || 'Insights'}" required>
+      </div>
+      <div class="form-group">
+        <label>Summary / Excerpt</label>
+        <textarea name="summary" required>${blog.summary || ''}</textarea>
+      </div>
+      <div class="form-group">
+        <label>Content (Markdown / HTML supported)</label>
+        <textarea name="content" rows="10" required>${blog.content || ''}</textarea>
+      </div>
+      <div class="form-group" style="display: flex; align-items: center; gap: 8px;">
+        <input type="checkbox" name="published" value="true" id="blogPublished" ${blog.published ? 'checked' : ''}>
+        <label for="blogPublished">Publish immediately</label>
+      </div>
+      <button type="submit" class="btn btn-primary">Update Blog Post</button>
+    </form>
+  `;
+  document.getElementById('blogForm').addEventListener('submit', saveBlog);
+  modal.classList.add('show');
+}
+
+async function saveBlog(e) {
+  e.preventDefault();
+  const formData = new FormData(e.target);
+  
+  const isPublished = document.getElementById('blogPublished').checked;
+  formData.set('published', isPublished ? 'true' : 'false');
+
+  const url = currentEditBlog 
+    ? `${API_URL}/blogs/${currentEditBlog}`
+    : `${API_URL}/blogs`;
+  
+  const method = currentEditBlog ? 'PUT' : 'POST';
+  
+  const response = await fetch(url, {
+    method,
+    body: formData
+  });
+  
+  const data = await response.json();
+  
+  if (data.success) {
+    showToast(currentEditBlog ? 'Blog updated!' : 'Blog added!');
+    modal.classList.remove('show');
+    loadBlogs();
+  }
+}
+
+async function deleteBlog(id) {
+  if (!confirm('Delete this blog post?')) return;
+  await fetch(`${API_URL}/blogs/${id}`, { method: 'DELETE' });
+  showToast('Blog deleted!');
+  loadBlogs();
+}
+
+// ===== FAQS =====
+let currentEditFaq = null;
+
+async function loadFaqs() {
+  const response = await fetch(`${API_URL}/faqs`);
+  const faqs = await response.json();
+  const grid = document.getElementById('faqsGrid');
+  grid.innerHTML = faqs.map(faq => `
+    <div class="card">
+      <div class="card-title" style="font-size:16px;">Q: ${faq.q}</div>
+      <div class="card-text" style="-webkit-line-clamp: 4;">A: ${faq.a}</div>
+      <div class="card-actions" style="margin-top:auto;">
+        <button class="btn btn-secondary btn-small" onclick="editFaq('${faq.id}')">Edit</button>
+        <button class="btn btn-danger btn-small" onclick="deleteFaq('${faq.id}')">Delete</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+document.getElementById('addFaqBtn').addEventListener('click', () => {
+  currentEditFaq = null;
+  document.getElementById('modalTitle').textContent = 'Add New FAQ';
+  document.getElementById('modalBody').innerHTML = `
+    <form id="faqForm">
+      <div class="form-group">
+        <label>Question</label>
+        <input type="text" name="q" required>
+      </div>
+      <div class="form-group">
+        <label>Answer</label>
+        <textarea name="a" rows="5" required></textarea>
+      </div>
+      <button type="submit" class="btn btn-primary">Add FAQ</button>
+    </form>
+  `;
+  document.getElementById('faqForm').addEventListener('submit', saveFaq);
+  modal.classList.add('show');
+});
+
+async function editFaq(id) {
+  const response = await fetch(`${API_URL}/faqs`);
+  const faqs = await response.json();
+  const faq = faqs.find(f => f.id === id);
+  if (!faq) return;
+
+  currentEditFaq = id;
+  document.getElementById('modalTitle').textContent = 'Edit FAQ';
+  document.getElementById('modalBody').innerHTML = `
+    <form id="faqForm">
+      <div class="form-group">
+        <label>Question</label>
+        <input type="text" name="q" value="${faq.q}" required>
+      </div>
+      <div class="form-group">
+        <label>Answer</label>
+        <textarea name="a" rows="5" required>${faq.a}</textarea>
+      </div>
+      <button type="submit" class="btn btn-primary">Update FAQ</button>
+    </form>
+  `;
+  document.getElementById('faqForm').addEventListener('submit', saveFaq);
+  modal.classList.add('show');
+}
+
+async function saveFaq(e) {
+  e.preventDefault();
+  const q = e.target.elements.q.value;
+  const a = e.target.elements.a.value;
+
+  const url = currentEditFaq 
+    ? `${API_URL}/faqs/${currentEditFaq}`
+    : `${API_URL}/faqs`;
+  
+  const method = currentEditFaq ? 'PUT' : 'POST';
+  
+  const response = await fetch(url, {
+    method,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ q, a })
+  });
+  
+  const data = await response.json();
+  
+  if (data.success) {
+    showToast(currentEditFaq ? 'FAQ updated!' : 'FAQ added!');
+    modal.classList.remove('show');
+    loadFaqs();
+  }
+}
+
+async function deleteFaq(id) {
+  if (!confirm('Delete this FAQ?')) return;
+  await fetch(`${API_URL}/faqs/${id}`, { method: 'DELETE' });
+  showToast('FAQ deleted!');
+  loadFaqs();
+}
+
+// ===== SITE SETTINGS =====
+async function loadSettings() {
+  const response = await fetch(`${API_URL}/settings`);
+  const settings = await response.json();
+  document.getElementById('settingEmail').value = settings.email || '';
+  document.getElementById('settingPhone').value = settings.phone || '';
+  document.getElementById('settingWhatsapp').value = settings.whatsapp || '';
+  document.getElementById('settingInstagram').value = settings.instagram || '';
+  document.getElementById('settingLinkedin').value = settings.linkedin || '';
+  document.getElementById('settingMedium').value = settings.medium || '';
+}
+
+document.getElementById('settingsForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const email = document.getElementById('settingEmail').value;
+  const phone = document.getElementById('settingPhone').value;
+  const whatsapp = document.getElementById('settingWhatsapp').value;
+  const instagram = document.getElementById('settingInstagram').value;
+  const linkedin = document.getElementById('settingLinkedin').value;
+  const medium = document.getElementById('settingMedium').value;
+
+  const response = await fetch(`${API_URL}/settings`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, phone, whatsapp, instagram, linkedin, medium })
+  });
+  
+  const data = await response.json();
+  if (data.success) {
+    showToast('Settings saved successfully!');
+    loadSettings();
+  } else {
+    showToast('Failed to save settings', 'error');
+  }
+});
+
 // Load data based on section
 function loadData(section) {
   if (section === 'works') loadWorks();
   else if (section === 'clients') loadClients();
   else if (section === 'videos') loadVideos();
+  else if (section === 'blogs') loadBlogs();
+  else if (section === 'faqs') loadFaqs();
+  else if (section === 'settings') loadSettings();
 }
 
 // Initial load

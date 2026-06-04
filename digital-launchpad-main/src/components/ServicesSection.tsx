@@ -1,43 +1,70 @@
+import { motion } from "framer-motion";
+import { Cloud, GitBranch, Cpu, AppWindow, ArrowRightLeft, ShieldCheck } from "lucide-react";
+
 const services = [
-  { icon: "🌐", title: "Business Website", desc: "Modern, fast, mobile-ready websites that convert visitors into customers." },
-  { icon: "⚙️", title: "SaaS Development", desc: "End-to-end SaaS platforms with dashboards, user management, and billing." },
-  { icon: "🛒", title: "E-commerce Solutions", desc: "Full-featured online stores with cart, payments, and inventory management." },
-  { icon: "📊", title: "Admin Dashboards", desc: "Powerful admin panels that give you full control over your digital products." },
-  { icon: "💳", title: "Payment Integration", desc: "Razorpay, PayU, PhonePe, and all major Indian payment gateways." },
-  { icon: "🤖", title: "Business Automation", desc: "Automate workflows, WhatsApp bots, CRM, and repetitive tasks." },
-  { icon: "📱", title: "Mobile Apps", desc: "Cross-platform iOS and Android apps that scale with your business." },
-  { icon: "🔧", title: "Maintenance & Support", desc: "Ongoing technical support, updates, and performance monitoring." },
+  {
+    icon: <Cloud className="w-6 h-6 text-[#7B2CF5]" />,
+    title: "Cloud Infrastructure",
+    desc: "Design scalable and secure AWS environments."
+  },
+  {
+    icon: <GitBranch className="w-6 h-6 text-[#7B2CF5]" />,
+    title: "DevOps & Automation",
+    desc: "CI/CD pipelines and deployment automation."
+  },
+  {
+    icon: <Cpu className="w-6 h-6 text-[#7B2CF5]" />,
+    title: "AI Solutions",
+    desc: "Custom AI applications and integrations."
+  },
+  {
+    icon: <AppWindow className="w-6 h-6 text-[#7B2CF5]" />,
+    title: "SaaS Development",
+    desc: "Modern web platforms and software products."
+  },
+  {
+    icon: <ArrowRightLeft className="w-6 h-6 text-[#7B2CF5]" />,
+    title: "Cloud Migration",
+    desc: "Migrate workloads securely to the cloud."
+  },
+  {
+    icon: <ShieldCheck className="w-6 h-6 text-[#7B2CF5]" />,
+    title: "Managed Services",
+    desc: "Ongoing monitoring and support."
+  }
 ];
 
 export default function ServicesSection() {
   return (
-    <section id="services" className="py-12 lg:py-16">
-      <div className="container mx-auto px-4">
-        <div className="text-center mb-10 fade-up">
-          <span className="text-xs font-semibold uppercase tracking-widest text-primary">What We Do</span>
-          <h2 className="font-heading font-extrabold text-3xl md:text-4xl mt-2">
-            Everything Your Business Needs to Go Online
+    <section id="services" className="py-20 bg-background">
+      <div className="container mx-auto px-6">
+        <div className="text-center mb-16 max-w-2xl mx-auto">
+          <span className="text-xs font-bold uppercase tracking-widest text-[#7B2CF5] block mb-3">Our Services</span>
+          <h2 className="font-heading font-black text-3xl md:text-4xl text-foreground">
+            Capabilities Built for Digital Transformation
           </h2>
-          <p className="text-muted-foreground mt-3 max-w-xl mx-auto">
-            From idea to launch — we build complete digital systems that work for your business.
+          <p className="font-body text-sm text-muted-foreground mt-4 leading-relaxed">
+            We provide deep expertise across cloud, DevOps, custom software engineering, and AI integrations to accelerate your technology roadmap.
           </p>
         </div>
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           {services.map((s, i) => (
-            <div
+            <motion.div
               key={s.title}
-              className="fade-up service-card p-6 rounded-lg border border-border bg-background"
-              style={{ 
-                boxShadow: "var(--shadow-card)",
-                transitionDelay: `${i * 0.08}s`
-              }}
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.4, delay: i * 0.05 }}
+              whileHover={{ y: -6, boxShadow: "0 10px 30px rgba(0,0,0,0.03)" }}
+              className="p-8 rounded-2xl border border-border bg-background transition-all duration-300"
             >
-              <div className="service-icon w-12 h-12 rounded-lg bg-secondary flex items-center justify-center text-2xl mb-4">
+              <div className="w-12 h-12 rounded-xl bg-secondary/50 flex items-center justify-center mb-6">
                 {s.icon}
               </div>
-              <h3 className="font-heading font-bold text-lg mb-2">{s.title}</h3>
-              <p className="text-sm text-muted-foreground">{s.desc}</p>
-            </div>
+              <h3 className="font-heading font-bold text-lg text-foreground mb-3">{s.title}</h3>
+              <p className="font-body text-sm text-muted-foreground leading-relaxed">{s.desc}</p>
+            </motion.div>
           ))}
         </div>
       </div>
