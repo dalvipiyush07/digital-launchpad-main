@@ -1,10 +1,9 @@
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronLeft, ChevronRight, Star } from "lucide-react";
+import { API_BASE } from "@/lib/apiBase";
 
-const IMG_BASE = typeof window !== 'undefined' && window.location.hostname !== 'localhost' 
-  ? '' 
-  : 'http://localhost:8081';
+const IMG_BASE = API_BASE;
 
 interface Testimonial {
   id: string;

@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { ArrowRight } from "lucide-react";
+import { API_BASE } from "@/lib/apiBase";
 
 interface Blog {
   id: string;
@@ -118,7 +119,7 @@ export default function BlogPreviewSection() {
                 {/* Image Container */}
                 <div className="relative aspect-video w-full overflow-hidden bg-muted border-b border-border/40">
                   <img
-                    src={blog.coverImage.startsWith("/uploads") ? `http://localhost:8081${blog.coverImage}` : blog.coverImage}
+                    src={blog.coverImage.startsWith("/uploads") ? `${API_BASE}${blog.coverImage}` : blog.coverImage}
                     alt={blog.title}
                     className="object-cover w-full h-full group-hover:scale-105 transition-transform duration-500"
                     onError={(e) => {
