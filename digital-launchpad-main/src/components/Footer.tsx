@@ -120,7 +120,7 @@ export default function Footer() {
         <div className="border-t border-white/5 pt-8 flex flex-col sm:flex-row justify-between items-center text-xs gap-4">
           <p>© {new Date().getFullYear()} CloudBuild. All Rights Reserved.</p>
           <div className="flex gap-6">
-            <a href="/#about" className="hover:text-[#7B2CF5] transition-colors">About</a>
+            <a href="/about" className="hover:text-[#7B2CF5] transition-colors">About</a>
             <a href="/#contact" className="hover:text-[#7B2CF5] transition-colors">Contact</a>
           </div>
         </div>

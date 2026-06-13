@@ -6,7 +6,7 @@ const navLinks = [
   { label: "Industries", href: "/#industries" },
   { label: "Case Studies", href: "/#case-studies" },
   { label: "Insights", href: "/insights" },
-  { label: "About", href: "/#about" },
+  { label: "About", href: "/about" },
   { label: "Contact", href: "/#contact" },
 ];
 
