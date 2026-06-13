@@ -4,6 +4,7 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import FloatingButtons from "@/components/FloatingButtons";
 import { ArrowLeft, Calendar, User, ExternalLink, Clock } from "lucide-react";
+import { API_BASE } from "@/lib/apiBase";
 
 interface Blog {
   id: string;
@@ -248,7 +249,7 @@ export default function BlogPostPage() {
           {/* Cover image */}
           <div className="relative aspect-video w-full rounded-2xl overflow-hidden bg-muted border border-border/60 mb-12 shadow-sm">
             <img
-              src={blog.coverImage.startsWith("/uploads") ? `http://localhost:8081${blog.coverImage}` : blog.coverImage}
+              src={blog.coverImage.startsWith("/uploads") ? `${API_BASE}${blog.coverImage}` : blog.coverImage}
               alt={blog.title}
               className="object-cover w-full h-full"
               onError={(e) => {
