@@ -1,4 +1,4 @@
-const API_URL = 'http://localhost:8081/api';
+const API_URL = `${window.location.origin}/api`;
 
 // Check authentication
 if (!localStorage.getItem('adminToken')) {
