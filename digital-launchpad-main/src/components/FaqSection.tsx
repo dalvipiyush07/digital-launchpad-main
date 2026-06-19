@@ -5,6 +5,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import { API_BASE } from "@/lib/apiBase";
 
 interface FAQ {
   id?: string;
@@ -61,7 +62,7 @@ export default function FaqSection() {
   useEffect(() => {
     async function fetchFaqs() {
       try {
-        const res = await fetch("/api/faqs");
+        const res = await fetch(`${API_BASE}/api/faqs`);
         if (res.ok) {
           const data = await res.json();
           if (Array.isArray(data) && data.length > 0) {

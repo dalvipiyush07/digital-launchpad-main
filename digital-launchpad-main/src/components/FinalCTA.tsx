@@ -2,6 +2,7 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 import { Mail, Phone, MapPin, MessageSquare } from "lucide-react";
+import { API_BASE } from "@/lib/apiBase";
 
 const WA_LINK = "https://wa.me/917709646107?text=Hi%20CloudBuild!%20I%27m%20interested%20in%20your%20enterprise%20consulting%20services.%20I%27d%20like%20to%20discuss%20our%20project.";
 const WA_AFTER_SUBMIT = "https://wa.me/917709646107?text=Hi%20CloudBuild!%20I%20just%20submitted%20a%20consultation%20request%20on%20your%20website.%20Looking%20forward%20to%20our%20discussion!";
@@ -28,7 +29,7 @@ export default function FinalCTA() {
     };
 
     try {
-      const response = await fetch('/api/contact', {
+      const response = await fetch(`${API_BASE}/api/contact`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
