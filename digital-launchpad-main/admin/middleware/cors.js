@@ -1,7 +1,7 @@
 const cors = require('cors');
 
 // Regular Expressions for strict CORS matching
-const localhostRegex = /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
+const localhostRegex = /^http:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/;
 const cloudbuildRegex = /^https:\/\/(?:[a-zA-Z0-9-]+\.)*cloudbuild\.tech$/;
 
 const corsOptions = {
