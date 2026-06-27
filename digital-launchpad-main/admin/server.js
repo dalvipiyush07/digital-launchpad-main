@@ -1,13 +1,121 @@
 const express = require('express');
 const multer = require('multer');
 const path = require('path');
-const fs = require('fs');
 const cors = require('cors');
 const nodemailer = require('nodemailer');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
+const hpp = require('hpp');
+const compression = require('compression');
+const morgan = require('morgan');
+
+// Load & Validate Environment Variables First
 require('dotenv').config({ path: path.join(__dirname, '../.env') });
+const { validateEnv } = require('./utils/env');
+validateEnv();
+
+const { supabase, uploadToSupabase, deleteFromSupabase } = require('./utils/supabase');
+const { requireAdmin, verifyPassword, generateToken } = require('./middleware/auth');
+const { validateBody } = require('./middleware/validation');
+const errorHandler = require('./middleware/errorHandler');
 
 const app = express();
 const PORT = process.env.PORT || 8081;
+
+// Disable X-Powered-By header
+app.disable('x-powered-by');
+
+// Global Middlewares
+app.use(morgan('combined'));
+app.use(helmet({
+  contentSecurityPolicy: false, // Allows admin dashboard assets to load properly
+  crossOriginResourcePolicy: { policy: "cross-origin" }
+}));
+app.use(compression());
+app.use(hpp());
+
+// Secure CORS config
+const allowedOrigins = (process.env.ALLOWED_ORIGINS || '').split(',').map(o => o.trim()).filter(Boolean);
+const corsOptions = {
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true); // Allow servers / local scripts
+    if (
+      allowedOrigins.length === 0 || 
+      allowedOrigins.includes(origin) || 
+      origin.startsWith('http://localhost') || 
+      origin.startsWith('http://127.0.0.1')
+    ) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  credentials: true,
+  allowedHeaders: ['Content-Type', 'Authorization']
+};
+app.use(cors(corsOptions));
+
+// Body Parsing with safe size limits
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: true, limit: '1mb' }));
+
+// Static files config
+app.use(express.static(path.join(__dirname, 'public')));
+app.use('/uploads', express.static(path.join(__dirname, 'public/uploads')));
+
+// Redirect root to login
+app.get('/', (req, res) => {
+  res.redirect('/login.html');
+});
+
+// Rate Limiters
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    message: 'Too many requests from this IP. Please try again after 15 minutes.',
+    errorCode: 'RATE_LIMIT_EXCEEDED'
+  }
+});
+
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    message: 'Too many login attempts. Please try again after 15 minutes.',
+    errorCode: 'LOGIN_RATE_LIMIT_EXCEEDED'
+  }
+});
+
+app.use('/api/', apiLimiter);
+
+// Multer Image Upload Security Setup
+const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/svg+xml'];
+const allowedExtensions = ['.jpg', '.jpeg', '.png', '.webp', '.gif', '.svg'];
+
+const fileFilter = (req, file, cb) => {
+  const fileExt = path.extname(file.originalname).toLowerCase();
+  if (allowedMimeTypes.includes(file.mimetype) && allowedExtensions.includes(fileExt)) {
+    cb(null, true);
+  } else {
+    cb(new Error('Only image files (JPG, JPEG, PNG, WEBP, GIF, SVG) are allowed!'));
+  }
+};
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 5 * 1024 * 1024 // 5MB limit
+  },
+  fileFilter
+});
 
 // Email transporter configuration
 const transporter = nodemailer.createTransport({
@@ -18,223 +126,430 @@ const transporter = nodemailer.createTransport({
   }
 });
 
-// Middleware
-app.use(cors({
-  origin: '*',
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  credentials: true,
-  allowedHeaders: ['Content-Type', 'Authorization']
-}));
-app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
-app.use('/uploads', express.static(path.join(__dirname, 'public/uploads')));
+// ===== AUTHENTICATION =====
+app.post('/api/login', loginLimiter, async (req, res, next) => {
+  try {
+    const { email, password } = req.body;
+    
+    const adminEmail = process.env.ADMIN_LOGIN_EMAIL || 'admin@cloud.in';
+    const adminPass = process.env.ADMIN_LOGIN_PASSWORD || 'admin2107';
+    
+    const emailMatches = email === adminEmail;
+    const passwordMatches = await verifyPassword(password, adminPass);
 
-// Redirect root to login
-app.get('/', (req, res) => {
-  res.redirect('/login.html');
-});
-
-// Multer configuration for image uploads
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, 'public/uploads/');
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, uniqueSuffix + path.extname(file.originalname));
-  }
-});
-
-const upload = multer({ storage });
-
-// Helper functions to read/write JSON files
-const readJSON = (filename) => {
-  const filePath = path.join(__dirname, 'data', filename);
-  if (!fs.existsSync(filePath)) {
-    fs.writeFileSync(filePath, JSON.stringify([]));
-  }
-  return JSON.parse(fs.readFileSync(filePath, 'utf8'));
-};
-
-const writeJSON = (filename, data) => {
-  const filePath = path.join(__dirname, 'data', filename);
-  fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
-};
-
-// Authentication endpoint
-app.post('/api/login', (req, res) => {
-  const { email, password } = req.body;
-  
-  const adminEmail = process.env.ADMIN_LOGIN_EMAIL || 'admin@cloud.in';
-  const adminPass = process.env.ADMIN_LOGIN_PASSWORD || 'admin2107';
-  if (email === adminEmail && password === adminPass) {
-    res.json({ success: true, token: 'admin-token-' + Date.now() });
-  } else {
-    res.status(401).json({ success: false, message: 'Invalid credentials' });
+    if (emailMatches && passwordMatches) {
+      const token = generateToken(email);
+      res.json({ success: true, token });
+    } else {
+      res.status(401).json({ 
+        success: false, 
+        message: 'Invalid email or password.', 
+        errorCode: 'INVALID_CREDENTIALS' 
+      });
+    }
+  } catch (err) {
+    next(err);
   }
 });
 
 // ===== WORKS API =====
-app.get('/api/works', (req, res) => {
-  const works = readJSON('works.json');
-  console.log('📦 GET /api/works - Returning', works.length, 'projects');
-  res.json(works);
+app.get('/api/works', async (req, res, next) => {
+  try {
+    const { data, error } = await supabase
+      .from('works')
+      .select('*')
+      .order('priority', { ascending: true });
+    
+    if (error) throw error;
+    res.json(data);
+  } catch (err) {
+    next(err);
+  }
 });
 
-app.post('/api/works', upload.single('thumbnail'), (req, res) => {
-  const works = readJSON('works.json');
-  const maxPriority = works.length > 0 ? Math.max(...works.map(w => w.priority || 0)) : 0;
-  const newWork = {
-    id: Date.now().toString(),
-    name: req.body.name,
-    tag: req.body.tag,
-    desc: req.body.desc,
-    url: req.body.url,
-    coverImage: req.file ? `/uploads/${req.file.filename}` : '/placeholder.svg',
-    priority: maxPriority + 1
-  };
-  works.push(newWork);
-  writeJSON('works.json', works);
-  console.log('✅ POST /api/works - Added new project:', newWork.name);
-  res.json({ success: true, work: newWork });
-});
+app.post('/api/works', requireAdmin, upload.single('thumbnail'), validateBody('works'), async (req, res, next) => {
+  let coverImage = null;
+  try {
+    coverImage = '/placeholder.svg';
+    if (req.file) {
+      coverImage = await uploadToSupabase(req.file);
+    }
 
-app.put('/api/works/:id', upload.single('thumbnail'), (req, res) => {
-  const works = readJSON('works.json');
-  const index = works.findIndex(w => w.id === req.params.id);
-  
-  if (index !== -1) {
-    works[index] = {
-      ...works[index],
+    const { data: works, error: priorityErr } = await supabase
+      .from('works')
+      .select('priority');
+    
+    if (priorityErr) throw priorityErr;
+    const maxPriority = works.length > 0 ? Math.max(...works.map(w => w.priority || 0)) : 0;
+
+    const crypto = require('crypto');
+    const newWork = {
+      id: crypto.randomUUID(),
       name: req.body.name,
       tag: req.body.tag,
       desc: req.body.desc,
       url: req.body.url,
-      coverImage: req.file ? `/uploads/${req.file.filename}` : works[index].coverImage
+      coverImage,
+      priority: maxPriority + 1
     };
-    writeJSON('works.json', works);
-    res.json({ success: true, work: works[index] });
-  } else {
-    res.status(404).json({ success: false, message: 'Work not found' });
+
+    const { error: insertErr } = await supabase
+      .from('works')
+      .insert(newWork);
+
+    if (insertErr) throw insertErr;
+    res.json({ success: true, work: newWork });
+  } catch (err) {
+    if (coverImage && coverImage !== '/placeholder.svg') {
+      await deleteFromSupabase(coverImage);
+    }
+    next(err);
   }
 });
 
-app.put('/api/works/:id/priority', (req, res) => {
-  const works = readJSON('works.json');
-  const index = works.findIndex(w => w.id === req.params.id);
-  
-  if (index !== -1) {
-    works[index].priority = parseInt(req.body.priority) || 999;
-    writeJSON('works.json', works);
+app.put('/api/works/:id', requireAdmin, upload.single('thumbnail'), validateBody('works'), async (req, res, next) => {
+  let uploadedImage = null;
+  try {
+    const { id } = req.params;
+    
+    const { data: current, error: fetchErr } = await supabase
+      .from('works')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle();
+    
+    if (fetchErr || !current) {
+      return res.status(404).json({ success: false, message: 'Work not found', errorCode: 'NOT_FOUND' });
+    }
+
+    let coverImage = current.coverImage;
+    if (req.file) {
+      uploadedImage = await uploadToSupabase(req.file);
+      coverImage = uploadedImage;
+    }
+
+    const updated = {
+      name: req.body.name,
+      tag: req.body.tag,
+      desc: req.body.desc,
+      url: req.body.url,
+      coverImage
+    };
+
+    const { error: updateErr } = await supabase
+      .from('works')
+      .update(updated)
+      .eq('id', id);
+
+    if (updateErr) throw updateErr;
+
+    // Delete old image if new image was successfully updated in DB
+    if (uploadedImage && current.coverImage && current.coverImage.startsWith('http')) {
+      await deleteFromSupabase(current.coverImage);
+    }
+
+    res.json({ success: true, work: { id, ...updated } });
+  } catch (err) {
+    if (uploadedImage) {
+      await deleteFromSupabase(uploadedImage);
+    }
+    next(err);
+  }
+});
+
+// Form Data parsing for priority update (uses upload.none() since no file is sent)
+app.put('/api/works/:id/priority', requireAdmin, upload.none(), async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const priority = parseInt(req.body.priority, 10) || 999;
+
+    const { error } = await supabase
+      .from('works')
+      .update({ priority })
+      .eq('id', id);
+
+    if (error) throw error;
     res.json({ success: true });
-  } else {
-    res.status(404).json({ success: false, message: 'Work not found' });
+  } catch (err) {
+    next(err);
   }
 });
 
-app.delete('/api/works/:id', (req, res) => {
-  let works = readJSON('works.json');
-  works = works.filter(w => w.id !== req.params.id);
-  writeJSON('works.json', works);
-  res.json({ success: true });
+app.delete('/api/works/:id', requireAdmin, async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const { data: current, error: fetchErr } = await supabase
+      .from('works')
+      .select('coverImage')
+      .eq('id', id)
+      .maybeSingle();
+
+    const { error } = await supabase
+      .from('works')
+      .delete()
+      .eq('id', id);
+
+    if (error) throw error;
+
+    // Delete storage file if database delete succeeded
+    if (current && current.coverImage && current.coverImage.startsWith('http')) {
+      await deleteFromSupabase(current.coverImage);
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    next(err);
+  }
 });
 
 // ===== CLIENTS API =====
-app.get('/api/clients', (req, res) => {
-  const clients = readJSON('clients.json');
-  res.json(clients);
+app.get('/api/clients', async (req, res, next) => {
+  try {
+    const { data, error } = await supabase
+      .from('clients')
+      .select('*')
+      .order('created_at', { ascending: true });
+    
+    if (error) throw error;
+    res.json(data);
+  } catch (err) {
+    next(err);
+  }
 });
 
-app.post('/api/clients', upload.single('photo'), (req, res) => {
-  const clients = readJSON('clients.json');
-  const newClient = {
-    id: Date.now().toString(),
-    name: req.body.name,
-    role: req.body.role,
-    text: req.body.text,
-    rating: parseInt(req.body.rating) || 5,
-    photo: req.file ? `/uploads/${req.file.filename}` : '/placeholder.svg'
-  };
-  clients.push(newClient);
-  writeJSON('clients.json', clients);
-  res.json({ success: true, client: newClient });
-});
+app.post('/api/clients', requireAdmin, upload.single('photo'), validateBody('clients'), async (req, res, next) => {
+  let photo = null;
+  try {
+    photo = '/placeholder.svg';
+    if (req.file) {
+      photo = await uploadToSupabase(req.file);
+    }
 
-app.put('/api/clients/:id', upload.single('photo'), (req, res) => {
-  const clients = readJSON('clients.json');
-  const index = clients.findIndex(c => c.id === req.params.id);
-  
-  if (index !== -1) {
-    clients[index] = {
-      ...clients[index],
+    const crypto = require('crypto');
+    const newClient = {
+      id: crypto.randomUUID(),
       name: req.body.name,
       role: req.body.role,
       text: req.body.text,
-      rating: parseInt(req.body.rating) || 5,
-      photo: req.file ? `/uploads/${req.file.filename}` : clients[index].photo
+      rating: req.body.rating,
+      photo
     };
-    writeJSON('clients.json', clients);
-    res.json({ success: true, client: clients[index] });
-  } else {
-    res.status(404).json({ success: false, message: 'Client not found' });
+
+    const { error } = await supabase
+      .from('clients')
+      .insert(newClient);
+
+    if (error) throw error;
+    res.json({ success: true, client: newClient });
+  } catch (err) {
+    if (photo && photo !== '/placeholder.svg') {
+      await deleteFromSupabase(photo);
+    }
+    next(err);
   }
 });
 
-app.delete('/api/clients/:id', (req, res) => {
-  let clients = readJSON('clients.json');
-  clients = clients.filter(c => c.id !== req.params.id);
-  writeJSON('clients.json', clients);
-  res.json({ success: true });
+app.put('/api/clients/:id', requireAdmin, upload.single('photo'), validateBody('clients'), async (req, res, next) => {
+  let uploadedImage = null;
+  try {
+    const { id } = req.params;
+
+    const { data: current, error: fetchErr } = await supabase
+      .from('clients')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (fetchErr || !current) {
+      return res.status(404).json({ success: false, message: 'Client not found', errorCode: 'NOT_FOUND' });
+    }
+
+    let photo = current.photo;
+    if (req.file) {
+      uploadedImage = await uploadToSupabase(req.file);
+      photo = uploadedImage;
+    }
+
+    const updated = {
+      name: req.body.name,
+      role: req.body.role,
+      text: req.body.text,
+      rating: req.body.rating,
+      photo
+    };
+
+    const { error } = await supabase
+      .from('clients')
+      .update(updated)
+      .eq('id', id);
+
+    if (error) throw error;
+
+    // Delete old image
+    if (uploadedImage && current.photo && current.photo.startsWith('http')) {
+      await deleteFromSupabase(current.photo);
+    }
+
+    res.json({ success: true, client: { id, ...updated } });
+  } catch (err) {
+    if (uploadedImage) {
+      await deleteFromSupabase(uploadedImage);
+    }
+    next(err);
+  }
+});
+
+app.delete('/api/clients/:id', requireAdmin, async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const { data: current, error: fetchErr } = await supabase
+      .from('clients')
+      .select('photo')
+      .eq('id', id)
+      .maybeSingle();
+
+    const { error } = await supabase
+      .from('clients')
+      .delete()
+      .eq('id', id);
+
+    if (error) throw error;
+
+    if (current && current.photo && current.photo.startsWith('http')) {
+      await deleteFromSupabase(current.photo);
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    next(err);
+  }
 });
 
 // ===== VIDEOS API =====
-app.get('/api/videos', (req, res) => {
-  const videos = readJSON('videos.json');
-  res.json(videos);
-});
+app.get('/api/videos', async (req, res, next) => {
+  try {
+    const { data, error } = await supabase
+      .from('videos')
+      .select('*')
+      .order('created_at', { ascending: true });
 
-app.post('/api/videos', upload.single('thumbnail'), (req, res) => {
-  const videos = readJSON('videos.json');
-  const newVideo = {
-    id: Date.now().toString(),
-    title: req.body.title,
-    type: req.body.type,
-    videoUrl: req.body.videoUrl,
-    thumbnail: req.file ? `/uploads/${req.file.filename}` : '/placeholder.svg'
-  };
-  videos.push(newVideo);
-  writeJSON('videos.json', videos);
-  res.json({ success: true, video: newVideo });
-});
-
-app.put('/api/videos/:id', upload.single('thumbnail'), (req, res) => {
-  const videos = readJSON('videos.json');
-  const index = videos.findIndex(v => v.id === req.params.id);
-  
-  if (index !== -1) {
-    videos[index] = {
-      ...videos[index],
-      title: req.body.title,
-      type: req.body.type,
-      videoUrl: req.body.videoUrl,
-      thumbnail: req.file ? `/uploads/${req.file.filename}` : videos[index].thumbnail
-    };
-    writeJSON('videos.json', videos);
-    res.json({ success: true, video: videos[index] });
-  } else {
-    res.status(404).json({ success: false, message: 'Video not found' });
+    if (error) throw error;
+    res.json(data);
+  } catch (err) {
+    next(err);
   }
 });
 
-app.delete('/api/videos/:id', (req, res) => {
-  let videos = readJSON('videos.json');
-  videos = videos.filter(v => v.id !== req.params.id);
-  writeJSON('videos.json', videos);
-  res.json({ success: true });
+app.post('/api/videos', requireAdmin, upload.single('thumbnail'), validateBody('videos'), async (req, res, next) => {
+  let thumbnail = null;
+  try {
+    thumbnail = '/placeholder.svg';
+    if (req.file) {
+      thumbnail = await uploadToSupabase(req.file);
+    }
+
+    const crypto = require('crypto');
+    const newVideo = {
+      id: crypto.randomUUID(),
+      title: req.body.title,
+      type: req.body.type,
+      videoUrl: req.body.videoUrl,
+      thumbnail
+    };
+
+    const { error } = await supabase
+      .from('videos')
+      .insert(newVideo);
+
+    if (error) throw error;
+    res.json({ success: true, video: newVideo });
+  } catch (err) {
+    if (thumbnail && thumbnail !== '/placeholder.svg') {
+      await deleteFromSupabase(thumbnail);
+    }
+    next(err);
+  }
+});
+
+app.put('/api/videos/:id', requireAdmin, upload.single('thumbnail'), validateBody('videos'), async (req, res, next) => {
+  let uploadedImage = null;
+  try {
+    const { id } = req.params;
+
+    const { data: current, error: fetchErr } = await supabase
+      .from('videos')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (fetchErr || !current) {
+      return res.status(404).json({ success: false, message: 'Video not found', errorCode: 'NOT_FOUND' });
+    }
+
+    let thumbnail = current.thumbnail;
+    if (req.file) {
+      uploadedImage = await uploadToSupabase(req.file);
+      thumbnail = uploadedImage;
+    }
+
+    const updated = {
+      title: req.body.title,
+      type: req.body.type,
+      videoUrl: req.body.videoUrl,
+      thumbnail
+    };
+
+    const { error } = await supabase
+      .from('videos')
+      .update(updated)
+      .eq('id', id);
+
+    if (error) throw error;
+
+    if (uploadedImage && current.thumbnail && current.thumbnail.startsWith('http')) {
+      await deleteFromSupabase(current.thumbnail);
+    }
+
+    res.json({ success: true, video: { id, ...updated } });
+  } catch (err) {
+    if (uploadedImage) {
+      await deleteFromSupabase(uploadedImage);
+    }
+    next(err);
+  }
+});
+
+app.delete('/api/videos/:id', requireAdmin, async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const { data: current, error: fetchErr } = await supabase
+      .from('videos')
+      .select('thumbnail')
+      .eq('id', id)
+      .maybeSingle();
+
+    const { error } = await supabase
+      .from('videos')
+      .delete()
+      .eq('id', id);
+
+    if (error) throw error;
+
+    if (current && current.thumbnail && current.thumbnail.startsWith('http')) {
+      await deleteFromSupabase(current.thumbnail);
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    next(err);
+  }
 });
 
 // ===== CONTACT FORM EMAIL API =====
-app.post('/api/contact', async (req, res) => {
+app.post('/api/contact', validateBody('contact'), async (req, res, next) => {
   const { name, email, phone, service, message } = req.body;
   
   try {
@@ -328,66 +643,121 @@ app.post('/api/contact', async (req, res) => {
 
     res.json({ success: true, message: 'Emails sent successfully' });
   } catch (error) {
-    console.error('Email error:', error);
-    res.status(500).json({ success: false, message: 'Failed to send emails' });
+    next(error);
   }
 });
 
 // ===== SETTINGS API =====
-app.get('/api/settings', (req, res) => {
-  const settings = readJSON('settings.json');
-  res.json(settings);
-});
+app.get('/api/settings', async (req, res, next) => {
+  try {
+    const { data, error } = await supabase
+      .from('settings')
+      .select('data')
+      .eq('id', 'global')
+      .maybeSingle();
 
-app.put('/api/settings', (req, res) => {
-  const settings = readJSON('settings.json');
-  const updatedSettings = {
-    ...settings,
-    ...req.body
-  };
-  writeJSON('settings.json', updatedSettings);
-  res.json({ success: true, settings: updatedSettings });
-});
-
-// ===== FAQS API =====
-app.get('/api/faqs', (req, res) => {
-  const faqs = readJSON('faqs.json');
-  res.json(faqs);
-});
-
-app.post('/api/faqs', (req, res) => {
-  const faqs = readJSON('faqs.json');
-  const newFaq = {
-    id: Date.now().toString(),
-    q: req.body.q,
-    a: req.body.a
-  };
-  faqs.push(newFaq);
-  writeJSON('faqs.json', faqs);
-  res.json({ success: true, faq: newFaq });
-});
-
-app.put('/api/faqs/:id', (req, res) => {
-  const faqs = readJSON('faqs.json');
-  const index = faqs.findIndex(f => f.id === req.params.id);
-  if (index !== -1) {
-    faqs[index] = {
-      ...faqs[index],
-      q: req.body.q,
-      a: req.body.a
-    };
-    writeJSON('faqs.json', faqs);
-    res.json({ success: true, faq: faqs[index] });
-  } else {
-    res.status(404).json({ success: false, message: 'FAQ not found' });
+    if (error || !data) {
+      return res.json({});
+    }
+    res.json(data.data || {});
+  } catch (err) {
+    next(err);
   }
 });
 
-app.delete('/api/faqs/:id', (req, res) => {
-  let faqs = readJSON('faqs.json');
-  faqs = faqs.filter(f => f.id !== req.params.id);
-  writeJSON('faqs.json', faqs);
-  res.json({ success: true });
+app.put('/api/settings', requireAdmin, validateBody('settings'), async (req, res, next) => {
+  try {
+    const { data: current, error: fetchErr } = await supabase
+      .from('settings')
+      .select('data')
+      .eq('id', 'global')
+      .maybeSingle();
+
+    const existing = current ? current.data : {};
+    const updated = {
+      ...existing,
+      ...req.body
+    };
+
+    const { error } = await supabase
+      .from('settings')
+      .upsert({ id: 'global', data: updated });
+
+    if (error) throw error;
+    res.json({ success: true, settings: updated });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ===== FAQS API =====
+app.get('/api/faqs', async (req, res, next) => {
+  try {
+    const { data, error } = await supabase
+      .from('faqs')
+      .select('*')
+      .order('created_at', { ascending: true });
+
+    if (error) throw error;
+    res.json(data);
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.post('/api/faqs', requireAdmin, validateBody('faqs'), async (req, res, next) => {
+  try {
+    const crypto = require('crypto');
+    const newFaq = {
+      id: crypto.randomUUID(),
+      q: req.body.q,
+      a: req.body.a
+    };
+
+    const { error } = await supabase
+      .from('faqs')
+      .insert(newFaq);
+
+    if (error) throw error;
+    res.json({ success: true, faq: newFaq });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.put('/api/faqs/:id', requireAdmin, validateBody('faqs'), async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const updated = {
+      q: req.body.q,
+      a: req.body.a
+    };
+
+    const { error } = await supabase
+      .from('faqs')
+      .update(updated)
+      .eq('id', id);
+
+    if (error) throw error;
+    res.json({ success: true, faq: { id, ...updated } });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.delete('/api/faqs/:id', requireAdmin, async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { error } = await supabase
+      .from('faqs')
+      .delete()
+      .eq('id', id);
+
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (err) {
+    next(err);
+  }
 });
 
 // ===== BLOGS API =====
@@ -459,8 +829,20 @@ const fetchMediumBlogs = () => {
   });
 };
 
-app.get('/api/blogs', async (req, res) => {
-  const localBlogs = readJSON('blogs.json');
+app.get('/api/blogs', async (req, res, next) => {
+  let localBlogs = [];
+  try {
+    const { data, error } = await supabase
+      .from('blogs')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    localBlogs = data || [];
+  } catch (err) {
+    console.error('Error fetching blogs from Supabase:', err.message);
+  }
+
   try {
     const mediumBlogs = await fetchMediumBlogs();
     const merged = [...localBlogs, ...mediumBlogs];
@@ -470,64 +852,146 @@ app.get('/api/blogs', async (req, res) => {
   }
 });
 
-app.post('/api/blogs', upload.single('coverImage'), (req, res) => {
-  const blogs = readJSON('blogs.json');
-  const title = req.body.title;
-  const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-  
-  const newBlog = {
-    id: Date.now().toString(),
-    slug,
-    title,
-    summary: req.body.summary,
-    content: req.body.content,
-    category: req.body.category || 'Insights',
-    coverImage: req.file ? `/uploads/${req.file.filename}` : '/placeholder.svg',
-    publishedDate: new Date().toLocaleDateString('en-US', {
-      month: 'short', day: '2-digit', year: 'numeric'
-    }),
-    published: req.body.published === 'true' || req.body.published === true
-  };
-  
-  blogs.push(newBlog);
-  writeJSON('blogs.json', blogs);
-  res.json({ success: true, blog: newBlog });
-});
-
-app.put('/api/blogs/:id', upload.single('coverImage'), (req, res) => {
-  const blogs = readJSON('blogs.json');
-  const index = blogs.findIndex(b => b.id === req.params.id);
-  
-  if (index !== -1) {
-    const title = req.body.title || blogs[index].title;
+app.post('/api/blogs', requireAdmin, upload.single('coverImage'), validateBody('blogs'), async (req, res, next) => {
+  let coverImage = null;
+  try {
+    const title = req.body.title;
     const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
     
-    blogs[index] = {
-      ...blogs[index],
-      title,
+    coverImage = '/placeholder.svg';
+    if (req.file) {
+      coverImage = await uploadToSupabase(req.file);
+    }
+
+    const crypto = require('crypto');
+    const newBlog = {
+      id: crypto.randomUUID(),
       slug,
-      summary: req.body.summary || blogs[index].summary,
-      content: req.body.content || blogs[index].content,
-      category: req.body.category || blogs[index].category,
-      coverImage: req.file ? `/uploads/${req.file.filename}` : blogs[index].coverImage,
-      published: req.body.published === 'true' || req.body.published === true
+      title,
+      summary: req.body.summary,
+      content: req.body.content,
+      category: req.body.category || 'Insights',
+      coverImage,
+      publishedDate: new Date().toLocaleDateString('en-US', {
+        month: 'short', day: '2-digit', year: 'numeric'
+      }),
+      published: req.body.published || false
     };
-    
-    writeJSON('blogs.json', blogs);
-    res.json({ success: true, blog: blogs[index] });
-  } else {
-    res.status(404).json({ success: false, message: 'Blog not found' });
+
+    const { error } = await supabase
+      .from('blogs')
+      .insert(newBlog);
+
+    if (error) throw error;
+    res.json({ success: true, blog: newBlog });
+  } catch (err) {
+    if (coverImage && coverImage !== '/placeholder.svg') {
+      await deleteFromSupabase(coverImage);
+    }
+    next(err);
   }
 });
 
-app.delete('/api/blogs/:id', (req, res) => {
-  let blogs = readJSON('blogs.json');
-  blogs = blogs.filter(b => b.id !== req.params.id);
-  writeJSON('blogs.json', blogs);
-  res.json({ success: true });
+app.put('/api/blogs/:id', requireAdmin, upload.single('coverImage'), validateBody('blogs'), async (req, res, next) => {
+  let uploadedImage = null;
+  try {
+    const { id } = req.params;
+
+    const { data: current, error: fetchErr } = await supabase
+      .from('blogs')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (fetchErr || !current) {
+      return res.status(404).json({ success: false, message: 'Blog not found', errorCode: 'NOT_FOUND' });
+    }
+
+    const title = req.body.title || current.title;
+    const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+
+    let coverImage = current.coverImage;
+    if (req.file) {
+      uploadedImage = await uploadToSupabase(req.file);
+      coverImage = uploadedImage;
+    }
+
+    const updated = {
+      title,
+      slug,
+      summary: req.body.summary || current.summary,
+      content: req.body.content || current.content,
+      category: req.body.category || current.category,
+      coverImage,
+      published: req.body.published || false
+    };
+
+    const { error } = await supabase
+      .from('blogs')
+      .update(updated)
+      .eq('id', id);
+
+    if (error) throw error;
+
+    if (uploadedImage && current.coverImage && current.coverImage.startsWith('http')) {
+      await deleteFromSupabase(current.coverImage);
+    }
+
+    res.json({ success: true, blog: { id, ...updated } });
+  } catch (err) {
+    if (uploadedImage) {
+      await deleteFromSupabase(uploadedImage);
+    }
+    next(err);
+  }
 });
 
-// Start server
-app.listen(PORT, () => {
+app.delete('/api/blogs/:id', requireAdmin, async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const { data: current, error: fetchErr } = await supabase
+      .from('blogs')
+      .select('coverImage')
+      .eq('id', id)
+      .maybeSingle();
+
+    const { error } = await supabase
+      .from('blogs')
+      .delete()
+      .eq('id', id);
+
+    if (error) throw error;
+
+    if (current && current.coverImage && current.coverImage.startsWith('http')) {
+      await deleteFromSupabase(current.coverImage);
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Global Error Handler Middleware (placed after routes)
+app.use(errorHandler);
+
+// Start server with performance timeout
+const server = app.listen(PORT, () => {
   console.log(`Cloud Build Admin running on port ${PORT}`);
 });
+server.setTimeout(15000); // 15 seconds request timeout
+
+// Graceful Shutdown Hook
+const shutdown = () => {
+  console.log('Stopping server gracefully...');
+  server.close(() => {
+    console.log('Process terminated.');
+    process.exit(0);
+  });
+  // Force exit after 5 seconds if connection close hangs
+  setTimeout(() => process.exit(1), 5000);
+};
+
+process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);

@@ -1,5 +1,22 @@
 const API_URL = `${window.location.origin}/api`;
 
+// Intercept window.fetch to automatically append JWT Token Authorization headers
+const originalFetch = window.fetch;
+window.fetch = async function (url, options = {}) {
+  const token = localStorage.getItem('adminToken');
+  if (token && url.toString().startsWith(API_URL)) {
+    options.headers = options.headers || {};
+    if (options.headers instanceof Headers) {
+      options.headers.set('Authorization', `Bearer ${token}`);
+    } else if (Array.isArray(options.headers)) {
+      options.headers.push(['Authorization', `Bearer ${token}`]);
+    } else {
+      options.headers['Authorization'] = `Bearer ${token}`;
+    }
+  }
+  return originalFetch(url, options);
+};
+
 // Check authentication
 if (!localStorage.getItem('adminToken')) {
   window.location.href = '/login.html';
