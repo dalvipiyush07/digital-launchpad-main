@@ -1,7 +1,7 @@
 const express = require('express');
 const multer = require('multer');
 const path = require('path');
-const cors = require('cors');
+const corsMiddleware = require('./middleware/cors');
 const nodemailer = require('nodemailer');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
@@ -34,27 +34,7 @@ app.use(helmet({
 app.use(compression());
 app.use(hpp());
 
-// Secure CORS config
-const allowedOrigins = (process.env.ALLOWED_ORIGINS || '').split(',').map(o => o.trim()).filter(Boolean);
-const corsOptions = {
-  origin: (origin, callback) => {
-    if (!origin) return callback(null, true); // Allow servers / local scripts
-    if (
-      allowedOrigins.length === 0 || 
-      allowedOrigins.includes(origin) || 
-      origin.startsWith('http://localhost') || 
-      origin.startsWith('http://127.0.0.1')
-    ) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  credentials: true,
-  allowedHeaders: ['Content-Type', 'Authorization']
-};
-app.use(cors(corsOptions));
+app.use(corsMiddleware);
 
 // Body Parsing with safe size limits
 app.use(express.json({ limit: '1mb' }));

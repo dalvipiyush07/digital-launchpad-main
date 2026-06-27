@@ -5,7 +5,10 @@ function validateEnv() {
     'JWT_SECRET',
     'GMAIL_USER',
     'GMAIL_APP_PASSWORD',
-    'ADMIN_EMAIL'
+    'ADMIN_EMAIL',
+    'ADMIN_LOGIN_EMAIL',
+    'ADMIN_LOGIN_PASSWORD'
+
   ];
 
   const missing = required.filter(key => !process.env[key]);
